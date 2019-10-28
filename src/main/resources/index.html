@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>HTTP/2 Server Push Demo</title>
+</head>
+<body>
+    <h1>HTTP/2 Server Push Demo</h1>
+    <p>This page demonstrates how HTTP/2 save the page load time.</p>
+    <div class="content">
+
+    </div>
+    <script>
+        (async function() {
+            const start  = Date.now();
+            const requests = [];
+            for(let i=0;i<20;++i) {
+                requests.push(fetch('/api/posts/'+i));
+            }
+
+            await Promise.all(requests)
+            const end = Date.now();
+            console.log(`Spend ${end-start}ms to finish all the requests`);
+            document.querySelector('div.content').innerText = `Spend ${end-start}ms to finish all the requests`;
+        })();
+
+    </script>
+</body>
+</html>

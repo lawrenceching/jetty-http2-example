@@ -10,8 +10,15 @@ import org.eclipse.jetty.util.ssl.SslContextFactory;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import java.io.File;
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Objects;
 
+import static java.lang.System.in;
 import static java.lang.System.out;
 
 public class ServerPushHttp2Server {
@@ -37,6 +44,7 @@ public class ServerPushHttp2Server {
         sslContextFactory.setKeyStorePassword("changeit");
         sslContextFactory.setCipherComparator(HTTP2Cipher.COMPARATOR);
 
+//        SslConnectionFactory sslConnectionFactory = new SslConnectionFactory(sslContextFactory, httpConnectionFactory.getProtocol());
         SslConnectionFactory sslConnectionFactory = new SslConnectionFactory(sslContextFactory, alpnServerConnectionFactory.getProtocol());
 
         Server server = new Server();
@@ -67,8 +75,43 @@ public class ServerPushHttp2Server {
 
             out.println("> " + target);
 
+            if(target.startsWith("/api/posts/")) {
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+                httpServletResponse.setContentType("application/x-javascript; charset=utf-8");
+                httpServletResponse.setStatus(HttpServletResponse.SC_OK);
+                httpServletResponse.getWriter().write("Data data data");
+
+                request.setHandled(true);
+                return;
+            }
+
+            switch(target) {
+                case "/":
+                case "/index.html": {
+                    URL indexHtml = HelloWorldHandler.class.getResource("/index.html");
+                    Objects.requireNonNull(indexHtml);
+                    try {
+                        String html = Files.readString(Path.of(indexHtml.toURI()));
+                        httpServletResponse.setContentType("text/html; charset=utf-8");
+                        httpServletResponse.setStatus(HttpServletResponse.SC_OK);
+                        httpServletResponse.getWriter().write(html);
+
+                        request.setHandled(true);
+                        return;
+
+                    } catch (URISyntaxException e) {
+                        e.printStackTrace();
+                    }
+                    break;
+                }
+            }
+
             if(target.equals("/data.js")) {
-                httpServletResponse.setContentType("text/plain; charset=utf-8");
+                httpServletResponse.setContentType("application/x-javascript; charset=utf-8");
                 httpServletResponse.setStatus(HttpServletResponse.SC_OK);
                 httpServletResponse.getWriter().write("function echo() {}");
 
@@ -87,8 +130,14 @@ public class ServerPushHttp2Server {
 
                 httpServletResponse.setContentType("text/html; charset=utf-8");
                 httpServletResponse.setStatus(HttpServletResponse.SC_OK);
-                httpServletResponse.getWriter().write("<html><body>Hello, world!</body></html>");
 
+                try {
+                    Thread.sleep(5000);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+
+                httpServletResponse.getWriter().write("<html><head><script text=\"text/javascript\" src=\"data.js\"></script></head><body>Hello, world!</body></html>");
                 request.setHandled(true);
                 return;
             }
