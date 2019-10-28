@@ -2,15 +2,14 @@ package me.imlc.example.jettyhttp2;
 
 import org.eclipse.jetty.alpn.server.ALPNServerConnectionFactory;
 import org.eclipse.jetty.http2.HTTP2Cipher;
-import org.eclipse.jetty.http2.server.HTTP2ServerConnectionFactory;
 import org.eclipse.jetty.server.*;
 import org.eclipse.jetty.server.handler.AbstractHandler;
+import org.eclipse.jetty.server.handler.HandlerCollection;
 import org.eclipse.jetty.util.ssl.SslContextFactory;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-import java.io.File;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -18,10 +17,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Objects;
 
-import static java.lang.System.in;
 import static java.lang.System.out;
+import static me.imlc.example.jettyhttp2.Commons.sleep;
 
-public class ServerPushHttp2Server {
+public class Http11Server {
 
     public static void main(String[] args) throws Exception {
 
@@ -34,33 +33,28 @@ public class ServerPushHttp2Server {
 
         HttpConnectionFactory httpConnectionFactory = new HttpConnectionFactory(httpConfiguration);
 
-        HTTP2ServerConnectionFactory http2ServerConnectionFactory = new HTTP2ServerConnectionFactory(httpConfiguration);
-
         ALPNServerConnectionFactory alpnServerConnectionFactory = new ALPNServerConnectionFactory();
         alpnServerConnectionFactory.setDefaultProtocol(httpConnectionFactory.getProtocol());
 
         SslContextFactory sslContextFactory = new SslContextFactory.Server();
-        sslContextFactory.setKeyStorePath(ServerPushHttp2Server.class.getResource("/dev.jks").toExternalForm());
+        sslContextFactory.setKeyStorePath(Http11Server.class.getResource("/dev.jks").toExternalForm());
         sslContextFactory.setKeyStorePassword("changeit");
         sslContextFactory.setCipherComparator(HTTP2Cipher.COMPARATOR);
 
-//        SslConnectionFactory sslConnectionFactory = new SslConnectionFactory(sslContextFactory, httpConnectionFactory.getProtocol());
-        SslConnectionFactory sslConnectionFactory = new SslConnectionFactory(sslContextFactory, alpnServerConnectionFactory.getProtocol());
+        SslConnectionFactory sslConnectionFactory = new SslConnectionFactory(sslContextFactory, httpConnectionFactory.getProtocol());
 
         Server server = new Server();
 
         ServerConnector serverConnector = new ServerConnector(
                 server,
                 sslConnectionFactory,
-                alpnServerConnectionFactory,
-                http2ServerConnectionFactory,
                 httpConnectionFactory
         );
 
         serverConnector.setPort(port);
 
         server.addConnector(serverConnector);
-        server.setHandler(new HelloWorldHandler());
+        server.setHandler(new HandlerCollection(new IndexHtmlHandler(), new ApiHandler()));
 
         server.start();
 
@@ -69,30 +63,19 @@ public class ServerPushHttp2Server {
         server.join();
     }
 
-    private static class HelloWorldHandler extends AbstractHandler {
+    private static class IndexHtmlHandler extends AbstractHandler {
+
         @Override
         public void handle(String target, Request request, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws IOException, ServletException {
 
             out.println("> " + target);
 
-            if(target.startsWith("/api/posts/")) {
-                try {
-                    Thread.sleep(5000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-                httpServletResponse.setContentType("application/x-javascript; charset=utf-8");
-                httpServletResponse.setStatus(HttpServletResponse.SC_OK);
-                httpServletResponse.getWriter().write("Data data data");
-
-                request.setHandled(true);
-                return;
-            }
-
             switch(target) {
                 case "/":
                 case "/index.html": {
-                    URL indexHtml = HelloWorldHandler.class.getResource("/index.html");
+                    sleep(5000);
+
+                    URL indexHtml = IndexHtmlHandler.class.getResource("/index.html");
                     Objects.requireNonNull(indexHtml);
                     try {
                         String html = Files.readString(Path.of(indexHtml.toURI()));
@@ -108,43 +91,26 @@ public class ServerPushHttp2Server {
                     }
                     break;
                 }
-            }
-
-            if(target.equals("/data.js")) {
-                httpServletResponse.setContentType("application/x-javascript; charset=utf-8");
-                httpServletResponse.setStatus(HttpServletResponse.SC_OK);
-                httpServletResponse.getWriter().write("function echo() {}");
-
-                request.setHandled(true);
-                return;
-            }
-
-            if(target.equals("/")) {
-                if(request.isPushSupported()) {
-                    request.getPushBuilder()
-                            .method("GET")
-                            .path("/data.js")
-                            .push();
-                    out.println("Push /data.js");
+                default: {
+                    httpServletResponse.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                    request.setHandled(true);
                 }
-
-                httpServletResponse.setContentType("text/html; charset=utf-8");
-                httpServletResponse.setStatus(HttpServletResponse.SC_OK);
-
-                try {
-                    Thread.sleep(5000);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-
-                httpServletResponse.getWriter().write("<html><head><script text=\"text/javascript\" src=\"data.js\"></script></head><body>Hello, world!</body></html>");
-                request.setHandled(true);
-                return;
             }
-
-            httpServletResponse.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            request.setHandled(true);
         }
     }
 
+    private static class ApiHandler extends AbstractHandler {
+        @Override
+        public void handle(String target, Request request, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws IOException, ServletException {
+            if(target.startsWith("/api/posts/")) {
+                sleep(5000);
+                httpServletResponse.setContentType("application/x-javascript; charset=utf-8");
+                httpServletResponse.setStatus(HttpServletResponse.SC_OK);
+                httpServletResponse.getWriter().write("Data data data");
+
+                request.setHandled(true);
+                return;
+            }
+        }
+    }
 }
